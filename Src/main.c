@@ -24,6 +24,7 @@
 /* USER CODE BEGIN Includes */
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -63,7 +64,7 @@ static void MX_USART2_UART_Init(void);
 void MX_USB_HOST_Process(void);
 
 /* USER CODE BEGIN PFP */
-
+uint8_t Rx_data[10];
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -106,18 +107,29 @@ int main(void)
   MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
 
+
+
+
+  HAL_UART_Receive_IT (&huart2, Rx_data, 7);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	  unsigned int analog_value_water_level;
 	  //unsigned int i;
-	  unsigned int pHLevel;
-	  unsigned int tds;
-	  unsigned int temperature_reading;
+	  //unsigned int pHLevel;
+	  //unsigned int tds;
+	  uint32_t temperature_reading;
 	  char msg[12];
+	  char sense[5];
 	  while (1)
 	  {
+
+
+	    if (!(strcmp(Rx_data,"sense"))) {
+
+
+	    }
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
 	    HAL_ADC_Start(&hadc1);
@@ -128,22 +140,23 @@ int main(void)
 	    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
 	    temperature_reading = HAL_ADC_GetValue(&hadc1);
 
+
 	    HAL_ADC_Stop(&hadc1);
 
 
-	    sprintf(msg, "%hu, %hu", analog_value_water_level, temperature_reading);
-	    HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), 100);
+	    sprintf(msg, "%u, %u, %s", analog_value_water_level, temperature_reading, Rx_data);
+	    HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 		//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
 
 
 
-		  if(analog_value_water_level > 1000){
+		  if(analog_value_water_level > 1000 && !(strcmp(Rx_data,"pump_on")) ){
 			  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_10); //Pump 1
 			  HAL_Delay(500);
 			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
 		  }
 
-		  if(temperature_reading > 4000){
+		  if(temperature_reading < 6000){
 		  	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8); //Pump 1
 		  	  HAL_Delay(500);
 		  	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
@@ -175,6 +188,11 @@ int main(void)
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
+}
+
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  HAL_UART_Receive_IT(&huart2, Rx_data, 7);
 }
 
 /**
