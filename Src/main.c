@@ -43,6 +43,7 @@
 
 /* Private variables ---------------------------------------------------------*/
  ADC_HandleTypeDef hadc1;
+ADC_HandleTypeDef hadc2;
 
 I2C_HandleTypeDef hi2c1;
 
@@ -61,15 +62,20 @@ static void MX_I2C1_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_USART2_UART_Init(void);
+static void MX_ADC2_Init(void);
 void MX_USB_HOST_Process(void);
 
 /* USER CODE BEGIN PFP */
-uint8_t Rx_data[10];
+uint8_t Rx_data[7];
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	HAL_UART_Receive_IT (&huart2, Rx_data, 7);
 
+}
 /* USER CODE END 0 */
 
 /**
@@ -105,6 +111,7 @@ int main(void)
   MX_USB_HOST_Init();
   MX_ADC1_Init();
   MX_USART2_UART_Init();
+  MX_ADC2_Init();
   /* USER CODE BEGIN 2 */
 
 
@@ -118,65 +125,207 @@ int main(void)
 	  unsigned int analog_value_water_level;
 	  //unsigned int i;
 	  //unsigned int pHLevel;
-	  //unsigned int tds;
+	  unsigned int tds;
 	  uint32_t temperature_reading;
 	  char msg[12];
-	  char sense[5];
+	  unsigned int senseAuto;
+	  unsigned int senseMan;
+	  unsigned int pump1;
+	  unsigned int pump2;
+	  unsigned int pump3;
+	  unsigned int pump4;
+	  unsigned int pump5;
+
 	  while (1)
 	  {
-
-
-	    if (!(strcmp(Rx_data,"sense"))) {
-
-
-	    }
+		//set all values
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
-	    HAL_ADC_Start(&hadc1);
-	    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
 
-	    analog_value_water_level = HAL_ADC_GetValue(&hadc1);
-
-	    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-	    temperature_reading = HAL_ADC_GetValue(&hadc1);
-
-
-	    HAL_ADC_Stop(&hadc1);
-
-
-	    sprintf(msg, "%u, %u, %s", analog_value_water_level, temperature_reading, Rx_data);
-	    HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
-		//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+		if (Rx_data[0] == 'S'){
+			senseAuto = 0;
+						senseMan = 0;
+						pump1 = 0;
+						pump2 = 0;
+						pump3 = 0;
+						pump4 = 0;
+						pump5 = 0;
 
 
+		}
+		else {
 
-		  if(analog_value_water_level > 1000 && !(strcmp(Rx_data,"pump_on")) ){
+			senseAuto = Rx_data[0];
+			senseMan = Rx_data [1];
+			pump1 = Rx_data[2];
+			pump2 = Rx_data[3];
+			pump3 = Rx_data[4];
+			pump4 = Rx_data[5];
+			pump5 = Rx_data[6];
+		}
+
+		HAL_ADC_Start(&hadc2);
+		HAL_ADC_PollForConversion(&hadc2, HAL_MAX_DELAY);
+
+		analog_value_water_level = HAL_ADC_GetValue(&hadc2);
+
+	    HAL_ADC_Stop(&hadc2);
+
+	    if (senseAuto == '1') {
+	    	// Fill sensor tank
+	    	while(analog_value_water_level < 200){
+	    		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
+	    		// Might need to use different ADC for water level
+	    		HAL_ADC_Start(&hadc2);//*********** Possible Change
+	    		HAL_ADC_PollForConversion(&hadc2, HAL_MAX_DELAY);
+
+	    		analog_value_water_level = HAL_ADC_GetValue(&hadc2);
+
+	    		HAL_ADC_Stop(&hadc2);
+
+	    		sprintf(msg, "%u, %s", analog_value_water_level, Rx_data);
+	    			    			    	// Send out all data to user
+	    		HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+	    		HAL_Delay(250);
+
+	    	}
+	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+
+	    	// do sense
+	    	// Sense all data
+	    	HAL_ADC_Start(&hadc1);
+	    	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+
+	    	temperature_reading = HAL_ADC_GetValue(&hadc1);
+
+	    	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+
+	    	tds = HAL_ADC_GetValue(&hadc1);
+
+	    	// More code for the pH and TDS
+
+	    	HAL_ADC_Stop(&hadc1);
+	    	// send data
+	    	// Add more data from other sensors to this ****
+	    	sprintf(msg, "%u, %u, %s", tds, temperature_reading, Rx_data);
+	    	// Send out all data to user
+	    	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+
+
+//	    	// check data with given values
+//			  if(analog_value_water_level > 1000){
+//				  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_10); //Pump 1
+//				  HAL_Delay(500);
+//				  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+//			  }
+//
+//			  if(temperature_reading < 6000){
+//			  	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8); //Pump 1
+//			  	  HAL_Delay(500);
+//			  	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+//			  }
+
+	    	  if(tds < 100){
+	    		  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_8); //Pump 1
+	    		  HAL_Delay(500);
+	    		  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+
+	    	  }
+
+			// Add more data points for all sensors to automate pumps
+	    }
+//	    if (senseMan == 1) {
+//	    	// Fill sensor tank
+//	    	while(analog_value_water_level < 1500){
+//	    		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
+//	    		// Might need to use different ADC for water level
+//	    		HAL_ADC_Start(&hadc1);//*********** Possible Change
+//	    		HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//
+//	    		analog_value_water_level = HAL_ADC_GetValue(&hadc1);
+//	    		HAL_ADC_Stop(&hadc1);
+//
+//	    	}
+//	    	HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+//
+//	    	// do sense
+//	    	// Sense all data
+//	    	HAL_ADC_Start(&hadc1);
+//	    	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//
+//	    	analog_value_water_level = HAL_ADC_GetValue(&hadc1);
+//
+//	    	HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//	    	temperature_reading = HAL_ADC_GetValue(&hadc1);
+//
+//
+//	    	// More code for the pH and TDS
+//
+//	    	HAL_ADC_Stop(&hadc1);
+//	    	// send data
+//	    	// Add more data from other sensors to this ****
+//	    	sprintf(msg, "%u, %u, %s", analog_value_water_level, temperature_reading, Rx_data);
+//	    	// Send out all data to user
+//	    	HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+//
+//	    }
+
+//
+//	    HAL_ADC_Start(&hadc1);
+//	    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//
+//	    analog_value_water_level = HAL_ADC_GetValue(&hadc1);
+//
+//	    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//	    temperature_reading = HAL_ADC_GetValue(&hadc1);
+//
+//	    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+//	    tds = HAL_ADC_GetValue(&hadc1);
+//
+//	    HAL_ADC_Stop(&hadc1);
+//
+//
+//	    sprintf(msg, "%u, %u, %u, %s", analog_value_water_level, temperature_reading, tds, Rx_data);
+//	    HAL_UART_Transmit(&huart2, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
+//		//HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+
+
+
+		  if(pump1 == '1') {
 			  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_10); //Pump 1
 			  HAL_Delay(500);
 			  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+
 		  }
 
-		  if(temperature_reading < 6000){
-		  	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8); //Pump 1
+		  if(pump2 == '1'){
+		  	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_8); //Pump 2
 		  	  HAL_Delay(500);
 		  	  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+
 		  }
-	//	  if(pHLevel > 8.4){
-	//	      HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_11); //Pump 2
-	//	  	  HAL_Delay(500);
-	//	  	  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_11);
-	//	  }
-	//	  if(pHLevel < 6.2){
-	//	  	 HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_12); //Pump 3
-	//	  	 HAL_Delay(500);
-	//	  	 HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_12);
-	//	  }
-	//	  if(tds > 345){
-	//		  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_13); //Pump 4
-	//		  HAL_Delay(500);
-	//		  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_13); //Pump 4
-	//
-	//	  }
+		  if(pump3 == '1'){
+		      HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9); //Pump 3
+		  	  HAL_Delay(500);
+		  	 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
+
+		  }
+		  if(pump4 == '1'){
+		  	 HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_8); //Pump 4
+		  	 HAL_Delay(500);
+		  	 HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+
+		  }
+		  if(pump5 == '1'){
+			  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7); //Pump 5
+			  HAL_Delay(500);
+			  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
+
+
+		  }
 
 
 
@@ -188,11 +337,6 @@ int main(void)
     /* USER CODE BEGIN 3 */
   }
   /* USER CODE END 3 */
-}
-
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
-{
-  HAL_UART_Receive_IT(&huart2, Rx_data, 7);
 }
 
 /**
@@ -279,7 +423,7 @@ static void MX_ADC1_Init(void)
 
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Channel = ADC_CHANNEL_4;
   sConfig.Rank = 1;
   sConfig.SamplingTime = ADC_SAMPLETIME_15CYCLES;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
@@ -289,7 +433,7 @@ static void MX_ADC1_Init(void)
 
   /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
   */
-  sConfig.Channel = ADC_CHANNEL_4;
+  sConfig.Channel = ADC_CHANNEL_14;
   sConfig.Rank = 2;
   if (HAL_ADC_ConfigChannel(&hadc1, &sConfig) != HAL_OK)
   {
@@ -298,6 +442,58 @@ static void MX_ADC1_Init(void)
   /* USER CODE BEGIN ADC1_Init 2 */
 
   /* USER CODE END ADC1_Init 2 */
+
+}
+
+/**
+  * @brief ADC2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_ADC2_Init(void)
+{
+
+  /* USER CODE BEGIN ADC2_Init 0 */
+
+  /* USER CODE END ADC2_Init 0 */
+
+  ADC_ChannelConfTypeDef sConfig = {0};
+
+  /* USER CODE BEGIN ADC2_Init 1 */
+
+  /* USER CODE END ADC2_Init 1 */
+
+  /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
+  */
+  hadc2.Instance = ADC2;
+  hadc2.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc2.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc2.Init.ScanConvMode = DISABLE;
+  hadc2.Init.ContinuousConvMode = DISABLE;
+  hadc2.Init.DiscontinuousConvMode = DISABLE;
+  hadc2.Init.ExternalTrigConvEdge = ADC_EXTERNALTRIGCONVEDGE_NONE;
+  hadc2.Init.ExternalTrigConv = ADC_SOFTWARE_START;
+  hadc2.Init.DataAlign = ADC_DATAALIGN_RIGHT;
+  hadc2.Init.NbrOfConversion = 1;
+  hadc2.Init.DMAContinuousRequests = DISABLE;
+  hadc2.Init.EOCSelection = ADC_EOC_SINGLE_CONV;
+  if (HAL_ADC_Init(&hadc2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Configure for the selected ADC regular channel its corresponding rank in the sequencer and its sample time.
+  */
+  sConfig.Channel = ADC_CHANNEL_1;
+  sConfig.Rank = 1;
+  sConfig.SamplingTime = ADC_SAMPLETIME_3CYCLES;
+  if (HAL_ADC_ConfigChannel(&hadc2, &sConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN ADC2_Init 2 */
+
+  /* USER CODE END ADC2_Init 2 */
 
 }
 
@@ -434,6 +630,9 @@ static void MX_GPIO_Init(void)
                           |Audio_RST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8|GPIO_PIN_10, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : CS_I2C_SPI_Pin */
@@ -443,12 +642,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(CS_I2C_SPI_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : OTG_FS_PowerSwitchOn_Pin */
-  GPIO_InitStruct.Pin = OTG_FS_PowerSwitchOn_Pin;
+  /*Configure GPIO pins : OTG_FS_PowerSwitchOn_Pin PC7 PC8 PC9 */
+  GPIO_InitStruct.Pin = OTG_FS_PowerSwitchOn_Pin|GPIO_PIN_7|GPIO_PIN_8|GPIO_PIN_9;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(OTG_FS_PowerSwitchOn_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : PDM_OUT_Pin */
   GPIO_InitStruct.Pin = PDM_OUT_Pin;
@@ -487,20 +686,20 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOD, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : I2S3_MCK_Pin I2S3_SCK_Pin I2S3_SD_Pin */
-  GPIO_InitStruct.Pin = I2S3_MCK_Pin|I2S3_SCK_Pin|I2S3_SD_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
-  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
-
   /*Configure GPIO pins : PA8 PA10 */
   GPIO_InitStruct.Pin = GPIO_PIN_8|GPIO_PIN_10;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : I2S3_SCK_Pin I2S3_SD_Pin */
+  GPIO_InitStruct.Pin = I2S3_SCK_Pin|I2S3_SD_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Alternate = GPIO_AF6_SPI3;
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
   /*Configure GPIO pin : OTG_FS_OverCurrent_Pin */
   GPIO_InitStruct.Pin = OTG_FS_OverCurrent_Pin;
